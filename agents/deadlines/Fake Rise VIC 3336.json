@@ -1,0 +1,19 @@
+{
+    "appointment_datetime": "18-12-2025 11:30",
+    "reminder_datetime": "20-12-2025 09:00",
+    "Property_Address": "Fake Rise VIC 3336",
+    "Purchaser": [
+        {
+            "First_Name": "John",
+            "Last_Name": "Smith",
+            "Purchaser_Email": "johnsmith@gmail.com",
+            "Purchaser_Mobile": "+61 411 222 333"
+        },
+        {
+            "First_Name": "Jane",
+            "Last_Name": "Smith",
+            "Purchaser_Email": "janesmith@gmail.com",
+            "Purchaser_Mobile": "+61 422 333 444"
+        }
+    ]
+}

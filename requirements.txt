@@ -1,0 +1,12 @@
+openai
+langgraph
+dotenv
+uvicorn
+fastapi
+pydantic
+authlib
+httpx
+starlette
+itsdangerous
+requests
+cachetools
