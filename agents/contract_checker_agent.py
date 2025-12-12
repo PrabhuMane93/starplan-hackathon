@@ -26,6 +26,8 @@ def upload_file_to_openai(client, file_path: str):
     return uploaded.id
 
 def contract_checker(state):
+    print("\n📌 Detected contract email — activating CONTRACT CHECKER agent...\n")
+
     email = state["email"]
 
 
@@ -134,6 +136,8 @@ Rules:
     eoi_json = search_vector_store(email_body)
     prompt = CONTRACT_CHECKER_PROMPT.format(eoi_json=eoi_json)
 
+    print("🤖 Validating Contract of Sale against EOI values...")
+
     # Persisting Vendor
     add_vendor(eoi_json["Property_Address"],vendor_email)
 
@@ -153,6 +157,7 @@ Rules:
     )
 
     response = json.loads(response.output_text)
+    print("📥 Contract validation complete.")
 
     purchasers = ""
     for i in eoi_json["Purchaser"]:
@@ -161,8 +166,11 @@ Rules:
     address = eoi_json["Property_Address"]
 
     if response["Contract_Validation"]:
-        # Generate solicitor email
 
+        print("✅ Contract matches EOI — no discrepancies found.")
+        print("📧 Sending approval email to solicitor...")
+
+        # Generate solicitor email
         subject = f"Contract of Sale Validated Successfully for {purchasers} - {address}"
         body = f"""
 Hi {eoi_json['Solicitor_Name']},
@@ -184,8 +192,10 @@ OneCorp"""
         }
 
         requests.post(API_URL, json=payload)
+        print("📤 Solicitor notified successfully.\n")
 
     else:
+        print("⚠️ Contains discrepancies, contract corrupted — preparing revision request email...")
         # Construct revision email to Vendor and internal team
         incorrect_fields = ""
         for field in response["Incorrect_Fields"]:
@@ -219,7 +229,10 @@ OneCorp Support Team"""
         }
 
         requests.post(API_URL, json=payload_1)
+        print("📧 Sending discrepancy report to vendor:", vendor_email)
         requests.post(API_URL, json=payload_2)
+        print("📧 Sending internal notification...")
+    print("🎯 Contract Validator AGENT complete.\n")
     return state
 
 

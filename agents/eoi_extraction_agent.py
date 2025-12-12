@@ -3,7 +3,6 @@ from openai import OpenAI
 from pydantic import BaseModel
 from typing import List, Optional
 from dotenv import load_dotenv
-from convert_document import save_pdf_from_content_bytes
 
 load_dotenv()
 
@@ -55,6 +54,8 @@ def ingest_eoi_to_vector_store(EOI_JSON, sender_email):
 
 
 def eoi_extractor(state):
+    print("📌 Detected Expression of Interest email — activating EOI extraction agent...")
+
     email = state["email"]
 
     attachments = email.get("attachments")
@@ -133,6 +134,7 @@ def eoi_extractor(state):
         text_format=EOIExtractedModel  # Pydantic automatic validation!
     )
     ingest_eoi_to_vector_store(response.output_text, from_email)
-
+    print("📥 Ingested extracted EOI JSON into vector store...")
+    print("🎯 EOI AGENT complete.\n")
     return state
 

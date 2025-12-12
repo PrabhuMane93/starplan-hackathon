@@ -5,10 +5,12 @@ from openai import OpenAI
 
 
 def sla_check(state):
+    print("\n📨 Detected DocuSign completion email — activating SLA AGENT...\n")
     client = OpenAI()
     email = state["email"]
     email_body   = email.get("body")
 
+    print("🔍 Extracting property details from signing-completion email...")
     DELETING_PROMPT = """
 You are a Contract Completion Agent for OneCorp Australia.
 
@@ -99,7 +101,10 @@ Now, using these rules, process the given email and filename list.
     if filename!= None:
         path = os.path.join(DEADLINES_DIR, filename)
         print(f"🗑 Deleting: {filename}")
+        print("CONTRACT PROCESSED SUCCESSFULLY!!!!!")
         os.remove(path)
     else:
-        print("No matching file to delete.")
+        print("⭕ No matching deadline file identified — nothing to delete.")
+
+    print("🎯 SLA AGENT complete.\n")
     return state

@@ -8,6 +8,8 @@ from eoi_extraction_agent import eoi_extractor
 from contract_checker_agent import contract_checker
 from signing_agent import signing_agent
 from sla_agent import sla_check
+from void_agent import void
+
 class RouterOutput(BaseModel):
     route: str
 
@@ -95,6 +97,7 @@ workflow.add_node("EOI_EXTRACTOR", eoi_extractor)
 workflow.add_node("CONTRACT_CHECKER", contract_checker)
 workflow.add_node("SIGNING_DATE", signing_agent)
 workflow.add_node("SIGNING_STATUS", sla_check)
+workflow.add_node("OTHER", void)
 
 
 workflow.set_entry_point("router")
@@ -106,11 +109,13 @@ workflow.add_conditional_edges(
         "EOI_EXTRACTOR": "EOI_EXTRACTOR",
         "CONTRACT_CHECKER": "CONTRACT_CHECKER",
         "SIGNING_DATE": "SIGNING_DATE",
-        "SIGNING_STATUS": "SIGNING_STATUS"
+        "SIGNING_STATUS": "SIGNING_STATUS",
+        "OTHER":"OTHER"
     }
 )
 workflow.add_edge("EOI_EXTRACTOR", END)
 workflow.add_edge("CONTRACT_CHECKER", END)
 workflow.add_edge("SIGNING_DATE", END)
 workflow.add_edge("SIGNING_STATUS", END)
+workflow.add_edge("OTHER", END)
 master_graph = workflow.compile()

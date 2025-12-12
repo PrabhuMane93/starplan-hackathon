@@ -9,7 +9,9 @@ from pydantic import BaseModel
 from dotenv import load_dotenv, set_key
 import uvicorn
 from cachetools import TTLCache
-from convert_document import save_pdf_from_content_bytes
+from convert_document import save_attachment_stream
+from fastapi import BackgroundTasks
+
 
 load_dotenv()
 
@@ -89,10 +91,46 @@ def subscribe():
     return data
 
 # -----------------------------------
-# WEBHOOK
+# BACKGROUND PROCESSOR
+# -----------------------------------
+def process_in_background(message_id: str):
+    """
+    This runs AFTER the webhook responds.
+    Heavy operations go here:
+      - fetch full email
+      - save attachments
+      - call local LangGraph agent
+      - send outgoing mail
+    """
+
+    try:
+        print(f"🚀 Background worker started for message: {message_id}")
+
+        email = fetch_email(message_id)
+
+        payload = {
+            "body": email["body"],
+            "subject": email["subject"],
+            "to_email": email["recipient_email"],
+            "from_email": email["sender_email"],
+            "attachments": email["attachments"]
+        }
+
+        print("➡️ Sending to agent:", payload)
+
+        # send the full payload to your LangGraph server
+        resp = requests.post("http://localhost:2000/incoming-email", json=payload)
+        print("Agent response:", resp.text)
+
+    except Exception as e:
+        print("❌ Background processing failed:", e)
+
+
+# -----------------------------------
+# WEBHOOK ENDPOINT — NON-BLOCKING VERSION
 # -----------------------------------
 @app.api_route("/webhook", methods=["GET", "POST"])
-async def webhook(request: Request):
+async def webhook(request: Request, background_tasks: BackgroundTasks):
 
     # --- VALIDATION HANDLING ---
     validation = request.query_params.get("validationToken")
@@ -111,7 +149,6 @@ async def webhook(request: Request):
 
     print("\n📩 EVENT:", body)
 
-    # --- PROCESS NOTIFICATIONS ---
     try:
         message_id = body["value"][0]["resourceData"]["id"]
 
@@ -120,31 +157,18 @@ async def webhook(request: Request):
             print(f"⚠️ Duplicate notification ignored: {message_id}")
             return {"status": "duplicate"}
 
-        processed_messages[message_id] = True  # mark as processed
+        processed_messages[message_id] = True
 
-        # --- FETCH EMAIL CONTENT ---
-        email = fetch_email(message_id)
-        payload = {
-            "body": email['body'],
-            "subject": email['subject'],
-            "to_email": email['recipient_email'],
-            "from_email": email['sender_email'],
-            "attachments": email['attachments']
-        }
-        resp = requests.post("http://localhost:2000/incoming-email", json=payload)
+        # 🚀 DO NOT PROCESS HERE — schedule background task
+        background_tasks.add_task(process_in_background, message_id)
 
-  
-        # send_email(
-        #     access_token=ACCESS_TOKEN,
-        #     recipient=email['sender_email'],
-        #     subject="RE: " + email['subject'],
-        #     body=reply
-        # )
+        print("⬅️ Webhook acknowledged, processing will continue in background.")
 
     except Exception as e:
         print("⚠️ Parsing error:", e)
 
-    return {"status": "ok"}
+    # respond immediately (must be under 5 seconds)
+    return {"status": "accepted"}
 
 
 # -----------------------------------
@@ -156,47 +180,56 @@ def fetch_email(message_id):
 
     r = requests.get(url, headers=headers)
     data = r.json()
-    # Extract fields safely
+
     subject = data.get("subject", "")
     body_html = data.get("body", {}).get("content", "")
+    body_text = re.sub(r"<.*?>", "", body_html).strip()
     sender_email = data.get("from", {}).get("emailAddress", {}).get("address", "")
     recipient_email = (
         data.get("toRecipients", [{}])[0]
         .get("emailAddress", {})
         .get("address", "")
     )
-    received_time = data.get("receivedDateTime", "")
 
-    # Strip HTML from the body (optional)
-    body_text = re.sub(r"<.*?>", "", body_html).strip()
-
-    # Handle attachments if needed
     attachments_list = []
-    if data.get("hasAttachments"):
-        url = f"https://graph.microsoft.com/v1.0/me/messages/{message_id}/attachments"
-        headers = {
-            "Authorization": f"Bearer {ACCESS_TOKEN}"
-        }
-        response = requests.get(url, headers=headers)
-        response.raise_for_status()
-        data = response.json()
-        attachments = data.get("value")
-        for attachment in attachments:
-            save_pdf_from_content_bytes(attachment['name'], attachment['contentBytes'])
-            attachments_list.append(f"data/{attachment['name']}")
 
+    if data.get("hasAttachments"):
+
+        # 1️⃣ Get metadata list
+        meta_url = f"https://graph.microsoft.com/v1.0/me/messages/{message_id}/attachments"
+        meta_resp = requests.get(meta_url, headers=headers).json()
+
+        for att in meta_resp.get("value", []):
+            att_id = att["id"]
+            att_name = att["name"]
+
+            # Only handle file attachments
+            if att["@odata.type"] != "#microsoft.graph.fileAttachment":
+                print(f"Skipping non-file attachment: {att_name}")
+                continue
+
+            # 2️⃣ Download raw file stream
+            download_url = f"https://graph.microsoft.com/v1.0/me/messages/{message_id}/attachments/{att_id}/$value"
+            file_resp = requests.get(download_url, headers=headers)
+
+            if file_resp.status_code == 200:
+                saved_path = save_attachment_stream(att_name, file_resp.content)
+                attachments_list.append(saved_path)
+            else:
+                print(f"❌ Failed to download attachment {att_name}")
 
     summary = {
         "subject": subject,
         "body": body_text,
         "sender_email": sender_email,
         "recipient_email": recipient_email,
-        "received_time": received_time,
+        "received_time": data.get("receivedDateTime", ""),
         "attachments": attachments_list
     }
-    # print(attachments)
+
     print("\n📨 CLEAN EMAIL DATA:", summary)
     return summary
+
 
 
 

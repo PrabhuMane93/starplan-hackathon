@@ -12,10 +12,12 @@ class SigningAppointment(BaseModel):
     reminder_datetime: str      # "dd-mm-yyyy HH:MM"
 
 def signing_agent(state):
+    print("\n🖊️ Detected signing-status email — activating SIGNING AGENT...\n")
     email = state["email"]
     # Extract appointment date and set reminder
     client = OpenAI()
 
+    print("📩 Extracting appointment date and reminder from signing email...")
     APPOINTMENT_EXTRACTOR_PROMPT = """
     You are a date-reasoning AI assistant. You will receive an email from a solicitor regarding a signing appointment.
 
@@ -72,9 +74,12 @@ def signing_agent(state):
         text_format=SigningAppointment  # Pydantic automatic validation!
     )
 
+    print("📅 Appointment extracted successfully.")
     response = json.loads(response.output_text)
     eoi_json = search_vector_store(email)
     
+    print("🔎 Retrieved EOI from vectorstore for appointment association...")
+
     response["Property_Address"] = eoi_json["Property_Address"]
     response["Purchaser"] = eoi_json["Purchaser"]
 
@@ -112,5 +117,6 @@ OneCorp
     }
 
     requests.post(API_URL, json=payload)
+    print("📤 Vendor notified to release contract via DocuSign.")
     return state
 
