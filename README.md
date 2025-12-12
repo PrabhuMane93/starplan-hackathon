@@ -3,7 +3,7 @@
 
 Automated EOI Extraction • Contract Validation • Signing Workflow • SLA Monitoring
 
-This repository contains the full automation pipeline used by **OneCorp Australia** to manage property contract workflows using email-driven AI agents.  
+This repository contains the full automation pipeline for submission of Hackathon problem statement of **OneCorp Australia** to manage property contract workflows using email-driven AI agents.  
 The system integrates with Microsoft Outlook (Graph API), OpenAI (Responses + Vector Stores), LangGraph, and DocuSign notifications to fully automate the contract lifecycle.
 
 ---
